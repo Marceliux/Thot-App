@@ -1,6 +1,10 @@
 window.addEventListener('DOMContentLoaded', ()=> {
+
     const {ipcRenderer: ipc} = require('electron');
+
+    
     const btnSearch = document.getElementById('btnSearch');
+    const btnSubmitKb = document.getElementById('btnSubmitKb');
     const titleInput = document.getElementById('txtKbTitle');
     const caseNumberInput = document.getElementById('txtCaseNumber');
     const solutionDescriptionInput = document.getElementById('txtSolutionDescription');
@@ -10,8 +14,8 @@ window.addEventListener('DOMContentLoaded', ()=> {
     const mobileOption = document.getElementById('slctMobileOS');
     const osVersionInput = document.getElementById('txtOsVersion');
 
-    const renderChanges = (markdown, target) =>
-        document.getElementById(`${target}`).innerHTML = markdown;
+    const renderChanges = (inputText, target) =>
+        document.getElementById(`${target}`).innerHTML = inputText;
     
     const showHidden = (con, target) =>
         con === true 
@@ -19,6 +23,22 @@ window.addEventListener('DOMContentLoaded', ()=> {
             document.getElementById(`${target}`).style.display = 'block'
             :
             target.map(val => document.getElementById(`${val}`).style.display = 'none')
+
+    const validatingBlankInputs = (input) => input.value.trim() !== '' && true ;
+
+    const validateWholeArray = arr =>  {
+        let errors = 0;
+        arr.map((val, ind) => {
+            if(!validatingBlankInputs(val)){
+                arr[ind].classList.add('is-invalid');
+                errors++;
+            }else
+                arr[ind].classList.remove('is-invalid');
+        });
+
+        return errors === 0;
+    }          
+
 
     titleInput.addEventListener('keyup', e => renderChanges(e.target.value, 'kbTitle'));
 
@@ -57,10 +77,9 @@ window.addEventListener('DOMContentLoaded', ()=> {
                     showHidden(true, 'platform');                        
                     break;
             }
-        }else{
-            renderChanges('', 'platform');
-            showHidden(false, ['sdkDiv', 'mobileDiv', 'osDiv']);
-        }
+        }else
+            showHidden(false, ['sdkDiv', 'mobileDiv', 'osDiv', 'platform']);
+        
     });
     
     mobileOption.addEventListener('change', (e) => {
@@ -89,8 +108,55 @@ window.addEventListener('DOMContentLoaded', ()=> {
         ipc.send('getTextSearch', txtSearch);
     });
 
-    //TODO validation, show submit when and just when every input is filled.
-    //TODO once validation is done, handle POST request to our API.
-    //TODO clean input method
-    //TODO sweet alert notification when server returns 201.
+    btnSubmitKb.addEventListener('click', ()=> {
+        const inputsToValidate = [titleInput, caseNumberInput, solutionDescriptionInput, transmitServerOption, platformOption, sdkOption];
+        const optionalInputs = [mobileOption, osVersionInput];
+        
+        if (platformOption.value === '1') 
+            if (validateWholeArray([...inputsToValidate, ...optionalInputs])){
+                const dataToPost = {
+                    kbTitle: titleInput.value, 
+                    caseNumber: caseNumberInput.value, 
+                    solutionDescription: solutionDescriptionInput.value, 
+                    transmitServerVersion:transmitServerOption.value, 
+                    platform: platformOption.value, 
+                    sdkVersion: sdkOption.value,
+                    mobileOs: mobileOption.value, 
+                    osVersion: osVersionInput.value
+                }
+
+                ipc.send('postNewKb', dataToPost);
+            } 
+            else
+                return;
+        else
+            if (validateWholeArray(inputsToValidate)){
+                const dataToPost = {
+                    kbTitle: titleInput.value, 
+                    caseNumber: caseNumberInput.value, 
+                    solutionDescription: solutionDescriptionInput.value, 
+                    transmitServerVersion:transmitServerOption.value, 
+                    platform: platformOption.value, 
+                    sdkVersion: sdkOption.value,
+                }
+
+                ipc.send('postNewKb', dataToPost);
+            }
+            else
+                return;
+
+    });
+
+    ipc.on('sendingResponseFromApi', (e, args) => {
+        const {status, message} = args;
+        if(status === 201){
+            swal('Good job!', `${message}`, 'success');
+            setTimeout(() => location.reload(), 1500);   
+        }
+        else{
+            swal('Oops', `${message}`, 'error');
+            setTimeout(() => location.reload(), 1500); 
+        }
+
+    });
 })
